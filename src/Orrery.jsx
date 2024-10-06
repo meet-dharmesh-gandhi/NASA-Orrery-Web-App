@@ -9,7 +9,12 @@ export default function Orrery() {
     const planetsCheckboxRef = useRef();
     const asteroidsCheckboxRef = useRef();
 
-    useEffect(loadOrrery, []);
+    useEffect(() => {
+        async function waiterFunction() {
+            await loadOrrery();
+        }
+        waiterFunction();
+    }, []);
 
     function handleSliderChange(e) {
         setSpeed(e.target.value);

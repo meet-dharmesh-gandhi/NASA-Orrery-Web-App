@@ -1,5 +1,6 @@
 import * as THREE from "../node_modules/three";
 import { OrbitControls } from "../node_modules/three/examples/jsm/controls/OrbitControls";
+import gsap from "gsap";
 
 const result = await fetch("https://data.nasa.gov/resource/b67r-rgxc.json");
 const jsonFile = await result.json();
@@ -26,6 +27,13 @@ let asteroidOrbitsCheckBox = document.querySelector(".asteroid-orbits") ?? null;
 let planetOribitVisible = true;
 let asteroidOribitVisible = true;
 let speed = 1;
+
+let planetToFollow = null;
+const followOffset = new THREE.Vector3(0, 0, 0);
+let followAzimuth = 0;
+const followPolar = Math.PI / 4;
+const followSpeed = 0.02;
+const followRadius = 1;
 
 const planets = [];
 const asteroids = [];
@@ -90,10 +98,60 @@ function createAsteroid({ data, scene, color = "blue", size = 0.01, texture = ""
     };
 }
 
+function animateFollowPlanet() {
+    if (planetToFollow) {
+        const targetPosition = new THREE.Vector3();
+        planetToFollow.getWorldPosition(targetPosition);
+
+        followAzimuth += followSpeed;
+
+        const newCameraPosition = new THREE.Vector3(
+            targetPosition.x + followRadius * Math.sin(followPolar) * Math.cos(followAzimuth),
+            targetPosition.y + followRadius * Math.cos(followPolar),
+            targetPosition.z + followRadius * Math.sin(followPolar) * Math.sin(followAzimuth)
+        );
+
+        camera.position.lerp(newCameraPosition, 0.1);
+        camera.lookAt(targetPosition);
+
+        requestAnimationFrame(animateFollowPlanet);
+    }
+}
+
+function stopFollowingPlanet() {
+    planetToFollow = null;
+}
+
+function zoomToObject(targetObject) {
+    const duration = 1.5;
+    planetToFollow = targetObject;
+
+    const targetPosition = new THREE.Vector3();
+    targetObject.getWorldPosition(targetPosition);
+
+    const newCameraPosition = targetPosition.clone().add(followOffset);
+
+    gsap.to(
+        camera.position,
+        {
+            duration,
+            x: newCameraPosition.x,
+            y: newCameraPosition.y,
+            z: newCameraPosition.z,
+            onUpdate: () => camera.lookAt(targetPosition),
+            onComplete: () => animateFollowPlanet()
+        }
+    );
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") stopFollowingPlanet();
+})
+
 const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
 
 export function loadOrrery() {
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
     const renderer = new THREE.WebGLRenderer();
     const controls = new OrbitControls(camera, renderer.domElement);
     camera.position.z = 5;
@@ -128,7 +186,16 @@ export function loadOrrery() {
         const intersects = raycaster.intersectObjects(scene.children, true);
 
         if (intersects.length > 0) {
-            intersects.forEach(intersect => { if (intersect.object.name !== "") console.log(`You clicked on: ${intersect.object.name}`) });
+            let clickedObject;
+            intersects.forEach(intersect => {
+                if (intersect.object.name !== "") {
+                    console.log(`You clicked on: ${intersect.object.name}`);
+                    clickedObject = intersect.object;
+                }
+            });
+            if (clickedObject) {
+                zoomToObject(clickedObject);
+            }
         }
     }
 

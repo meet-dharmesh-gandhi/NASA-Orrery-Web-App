@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 public/space1.mp4
+*.glb
